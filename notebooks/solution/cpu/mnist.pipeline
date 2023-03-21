@@ -32,8 +32,8 @@
             "ui_data": {
               "label": "Train.ipynb",
               "image": "/notebook/mnist/mnist-notebook/static/elyra/notebook.svg",
-              "x_pos": 527,
-              "y_pos": 263,
+              "x_pos": 505,
+              "y_pos": 273,
               "description": "Run notebook file"
             }
           },
@@ -130,7 +130,7 @@
           ]
         },
         {
-          "id": "acfbad91-be41-4de2-871b-383d761a85b4",
+          "id": "4d0ba439-88c1-467d-9043-026b40f7051a",
           "type": "execution_node",
           "op": "execute-notebook-node",
           "app_data": {
@@ -157,8 +157,8 @@
             "ui_data": {
               "label": "Metadata.ipynb",
               "image": "/notebook/mnist/mnist-notebook/static/elyra/notebook.svg",
-              "x_pos": 819,
-              "y_pos": 323,
+              "x_pos": 802,
+              "y_pos": 348,
               "description": "Run notebook file"
             }
           },
@@ -176,7 +176,7 @@
               },
               "links": [
                 {
-                  "id": "fa077f81-5994-4f89-a777-89bd75413872",
+                  "id": "cb3d8c25-eeb0-458a-a735-0527548b0673",
                   "node_id_ref": "3262df5b-8ee0-4e73-8188-aef81f9162a5",
                   "port_id_ref": "outPort"
                 }
@@ -231,16 +231,16 @@
               ]
             },
             {
-              "id": "27ac9752-f213-41b0-8bf8-515c73c15aa1",
-              "x_pos": 772,
-              "y_pos": 185,
+              "id": "48c3c116-3666-4563-ab30-96663b13cf1e",
+              "x_pos": 752,
+              "y_pos": 229,
               "width": 175,
               "height": 44,
               "content": "**Set metadata pipeline artifacts**",
               "associated_id_refs": [
                 {
-                  "id": "3ea059b9-a2de-4726-9000-c4e2618223f1",
-                  "node_ref": "acfbad91-be41-4de2-871b-383d761a85b4"
+                  "id": "f2e9cd21-f22d-4034-9821-561174ecfec0",
+                  "node_ref": "4d0ba439-88c1-467d-9043-026b40f7051a"
                 }
               ]
             }
@@ -251,11 +251,11 @@
           "name": "mnist",
           "runtime": "Generic",
           "pipeline_defaults": {
-            "mounted_volumes": [],
             "kubernetes_shared_mem_size": {},
+            "mounted_volumes": [],
             "kubernetes_pod_labels": [],
-            "kubernetes_tolerations": [],
             "kubernetes_pod_annotations": [],
+            "kubernetes_tolerations": [],
             "env_vars": [],
             "kubernetes_secrets": [
               {
@@ -280,7 +280,7 @@
               }
             ],
             "disable_node_caching": "True",
-            "runtime_image": "quay.io/alegros/runtime-image:cuda-ubi8-py38"
+            "runtime_image": "quay.io/alegros/runtime-image:rhods-mnist-cpu"
           }
         }
       },
