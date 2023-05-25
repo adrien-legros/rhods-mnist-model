@@ -35,7 +35,7 @@
             "label": "",
             "ui_data": {
               "label": "Train.ipynb",
-              "image": "/notebook/kfp/notebook/static/elyra/notebook.svg",
+              "image": "/notebook/digit-recognition/digit-recognition/static/elyra/notebook.svg",
               "x_pos": 717,
               "y_pos": 308,
               "description": "Run notebook file"
@@ -104,7 +104,7 @@
             "label": "",
             "ui_data": {
               "label": "Pre-process.ipynb",
-              "image": "/notebook/kfp/notebook/static/elyra/notebook.svg",
+              "image": "/notebook/digit-recognition/digit-recognition/static/elyra/notebook.svg",
               "x_pos": 297,
               "y_pos": 180.5,
               "description": "Run notebook file"
@@ -166,7 +166,7 @@
             "label": "",
             "ui_data": {
               "label": "Evaluate.ipynb",
-              "image": "/notebook/kfp/notebook/static/elyra/notebook.svg",
+              "image": "/notebook/digit-recognition/digit-recognition/static/elyra/notebook.svg",
               "x_pos": 1076,
               "y_pos": 304,
               "description": "Run notebook file"
@@ -235,7 +235,7 @@
             "label": "",
             "ui_data": {
               "label": "Review.ipynb",
-              "image": "/notebook/kfp/notebook/static/elyra/notebook.svg",
+              "image": "/notebook/digit-recognition/digit-recognition/static/elyra/notebook.svg",
               "x_pos": 1074,
               "y_pos": 177,
               "description": "Run notebook file"
@@ -302,8 +302,8 @@
             },
             {
               "id": "801b0dbf-118a-4f16-9c18-f83a382936df",
-              "x_pos": 700,
-              "y_pos": 416,
+              "x_pos": 652,
+              "y_pos": 411,
               "width": 175,
               "height": 44,
               "content": "**Build and train the neural network model**",
@@ -311,6 +311,34 @@
                 {
                   "id": "25aa375a-ba62-4448-894a-6b6ad1878b60",
                   "node_ref": "3262df5b-8ee0-4e73-8188-aef81f9162a5"
+                }
+              ]
+            },
+            {
+              "id": "0da5a164-1930-4c08-a388-d677ded0d064",
+              "x_pos": 1055,
+              "y_pos": 410,
+              "width": 175,
+              "height": 44,
+              "content": "**Test and evaluate the model**",
+              "associated_id_refs": [
+                {
+                  "id": "6afedf45-96bf-4807-8606-7c8dec97d2de",
+                  "node_ref": "58c33e51-dee3-40dd-859b-7be8006b6ae6"
+                }
+              ]
+            },
+            {
+              "id": "a9efb653-86a3-468b-9c13-840dfa7cdd3c",
+              "x_pos": 1013,
+              "y_pos": 91,
+              "width": 175,
+              "height": 44,
+              "content": "**Analysis of the misclassification**",
+              "associated_id_refs": [
+                {
+                  "id": "dbeb3d71-0973-4f09-be4f-26ec42e93926",
+                  "node_ref": "0a2b2c67-599e-4e0f-a03b-a7223bfaf1cc"
                 }
               ]
             }
