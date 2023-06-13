@@ -207,6 +207,80 @@
               }
             }
           ]
+        },
+        {
+          "id": "0a2b2c67-599e-4e0f-a03b-a7223bfaf1cc",
+          "type": "execution_node",
+          "op": "execute-notebook-node",
+          "app_data": {
+            "component_parameters": {
+              "dependencies": [],
+              "include_subdirectories": false,
+              "outputs": [],
+              "env_vars": [],
+              "kubernetes_pod_annotations": [],
+              "kubernetes_pod_labels": [],
+              "kubernetes_secrets": [],
+              "kubernetes_shared_mem_size": {},
+              "kubernetes_tolerations": [],
+              "mounted_volumes": [
+                {
+                  "path": "/tmp/ml-pipeline",
+                  "pvc_name": "ml-pipeline",
+                  "read_only": false
+                }
+              ],
+              "filename": "Review.ipynb"
+            },
+            "label": "",
+            "ui_data": {
+              "label": "Review.ipynb",
+              "image": "/notebook/mnist/mnist-notebook/static/elyra/notebook.svg",
+              "x_pos": 1074,
+              "y_pos": 177,
+              "description": "Run notebook file"
+            }
+          },
+          "inputs": [
+            {
+              "id": "inPort",
+              "app_data": {
+                "ui_data": {
+                  "cardinality": {
+                    "min": 0,
+                    "max": -1
+                  },
+                  "label": "Input Port"
+                }
+              },
+              "links": [
+                {
+                  "id": "5ed627f9-0ac9-4c7e-bc0b-3417d0adaaf0",
+                  "node_id_ref": "41e11d28-821e-4cfa-b292-5671fc807c72",
+                  "port_id_ref": "outPort"
+                },
+                {
+                  "id": "86c478d0-d313-469a-8fa8-73a6d7912808",
+                  "node_id_ref": "3262df5b-8ee0-4e73-8188-aef81f9162a5",
+                  "port_id_ref": "outPort"
+                }
+              ]
+            }
+          ],
+          "outputs": [
+            {
+              "id": "outPort",
+              "app_data": {
+                "ui_data": {
+                  "cardinality": {
+                    "min": 0,
+                    "max": -1
+                  },
+                  "label": "Output Port"
+                }
+              }
+            }
+          ]
         }
       ],
       "app_data": {
@@ -261,7 +335,12 @@
               "width": 175,
               "height": 44,
               "content": "**Analysis of the misclassification**",
-              "associated_id_refs": []
+              "associated_id_refs": [
+                {
+                  "id": "dbeb3d71-0973-4f09-be4f-26ec42e93926",
+                  "node_ref": "0a2b2c67-599e-4e0f-a03b-a7223bfaf1cc"
+                }
+              ]
             }
           ]
         },
