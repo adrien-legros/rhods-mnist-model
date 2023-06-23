@@ -10,29 +10,31 @@ import pre_process
 import train
 import evaluate
 
+from kfp.dsl import data_passing_methods
+from kubernetes.client.models import V1Volume, V1PersistentVolumeClaimVolumeSource, \
+    V1PersistentVolumeClaimSpec, V1ResourceRequirements
+
 pre_process_op = kfp.components.create_component_from_func(
-    pre_process,
-    base_image="quay.io/alegros/runtime-image:cuda-ubi8-py38",
-    #packages_to_install=["pandas", "scikit-learn"],
+    pre_process.pre_process,
+    base_image="quay.io/alegros/runtime-image:rhods-mnist-cpu",
 )
 
 train_op = kfp.components.create_component_from_func(
-    train,
-    base_image="quay.io/alegros/runtime-image:cuda-ubi8-py38",
-    #packages_to_install=["pandas", "scikit-learn"],
+    train.train,
+    base_image="quay.io/alegros/runtime-image:rhods-mnist-cpu",
+    packages_to_install=["mlflow"],
 )
 
 evalue_op = kfp.components.create_component_from_func(
-    evaluate,
-    base_image="quay.io/alegros/runtime-image:cuda-ubi8-py38",
-    #packages_to_install=["pandas", "scikit-learn"],
+    evaluate.evaluate,
+    base_image="quay.io/alegros/runtime-image:rhods-mnist-cpu",
 )
 
 @kfp.dsl.pipeline(
     name="Mnist Pipeline",
 )
-def mnist_pipeline(model_obc: str = "mnist-model"):
-    accesskey = kubernetes.client.V1EnvVaTr(
+def mnist_pipeline(model_obc: str = "mnist-model", tag: str = "latest"):
+    accesskey = kubernetes.client.V1EnvVar(
         name="AWS_ACCESS_KEY_ID",
         value_from=kubernetes.client.V1EnvVarSource(
             secret_key_ref=kubernetes.client.V1SecretKeySelector(
@@ -76,7 +78,8 @@ def mnist_pipeline(model_obc: str = "mnist-model"):
         pre_process_task.outputs["y_train"],
         pre_process_task.outputs["X_val"],
         pre_process_task.outputs["y_val"],
-        pre_process_task.outputs["X_test"]
+        pre_process_task.outputs["X_test"],
+        tag = tag
     ).add_env_variable(accesskey).add_env_variable(host).add_env_variable(port).add_env_variable(secretkey).add_env_variable(bucket)
     evaluate_task = evalue_op(
         pre_process_task.outputs["X_val"],
@@ -85,30 +88,26 @@ def mnist_pipeline(model_obc: str = "mnist-model"):
         train_task.outputs["model"]
     ).add_env_variable(accesskey).add_env_variable(host).add_env_variable(port).add_env_variable(secretkey).add_env_variable(bucket)
 
+
 if __name__ == '__main__':
     host = "http://ds-pipeline-pipelines-definition:8888"
-    # mlflow.set_tracking_uri("http://mlflow-server.mlflow.svc.cluster.local:8080")
-    # parser = argparse.ArgumentParser(
-    #                     prog='Model.py',
-    #                     description='Digit recognition model and pipeline triggering')
-    # parser.add_argument('-t', '--tag')
-    # args = parser.parse_args()
-    # tag = args.tag
+    parser = argparse.ArgumentParser(
+                        prog='Model.py',
+                        description='Digit recognition model and pipeline triggering')
+    parser.add_argument('-t', '--tag')
+    args = parser.parse_args()
+    tag = args.tag
     volume_based_data_passing_method = data_passing_methods.KubernetesVolume(
         volume=V1Volume(
             name='data',
             persistent_volume_claim=V1PersistentVolumeClaimVolumeSource(
                 claim_name='ml-pipeline'),
-        )    
+        )
     )
     pipeline_conf = kfp.dsl.PipelineConf()
     pipeline_conf.data_passing_method = volume_based_data_passing_method
-    
     client = kfp_tekton.TektonClient(host=host)
-    # mlflow.log_param("git.commit", tag)
-    # mlflow.end_run()
-    # with mlflow.start_run():
     result = client.create_run_from_pipeline_func(
-        mnist_pipeline, arguments={}, experiment_name="mnist_kfp", pipeline_conf=pipeline_conf
+        mnist_pipeline, arguments={"tag": tag}, experiment_name="mnist_kfp", pipeline_conf=pipeline_conf
     )
-    print(f"Starting pipeline run with run_id: {result.run_id}")
+    print(f"RUN_ID: {result.run_id}")

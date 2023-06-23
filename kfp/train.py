@@ -6,7 +6,8 @@ def train(
         X_val_file: comp.InputPath(),
         y_val_file: comp.InputPath(),
         X_test_file: comp.InputPath(),
-        model_file: comp.OutputPath()
+        model_file: comp.OutputPath(),
+        tag: str
 ):
     import numpy as np
     import pandas as pd
@@ -14,6 +15,7 @@ def train(
     from tensorflow import keras
     import subprocess
     import pickle
+    import mlflow
 
     def save_pickle(object_file, target_object):
         with open(object_file, "wb") as f:
@@ -52,14 +54,18 @@ def train(
             optimizer=keras.optimizers.Adam(learning_rate=0.0001),
             metrics=['accuracy'])
         return model, inp, output
-
-    model, inp, out = build_model()
-    model.summary()
-
-    model.fit(X_train, y_train, validation_data=(X_val, y_val), epochs=1, batch_size=32,
-                    callbacks=[keras.callbacks.EarlyStopping(monitor='val_loss',mode='min',patience=10, 
-                                                            min_delta=0.005, restore_best_weights=True),
-                            keras.callbacks.ReduceLROnPlateau(monitor = 'val_loss', patience = 3)])
+    mlflow.end_run()
+    mlflow.set_tracking_uri("http://mlflow-server.mlflow.svc.cluster.local:8080")
+    mlflow.tensorflow.autolog()
+    with mlflow.start_run():
+        mlflow.set_tag("git.commit", tag)
+        model, inp, out = build_model()
+        model.summary()
+        model.fit(X_train, y_train, validation_data=(X_val, y_val), epochs=1, batch_size=32,
+                        callbacks=[keras.callbacks.EarlyStopping(monitor='val_loss',mode='min',patience=10, 
+                                                                min_delta=0.005, restore_best_weights=True),
+                                keras.callbacks.ReduceLROnPlateau(monitor = 'val_loss', patience = 3)])
+    mlflow.end_run()
     model_path_local = '/tmp/saved_model'
     onnx_path_local = '/tmp/model.onnx'
     tf.saved_model.save(model, model_path_local)
