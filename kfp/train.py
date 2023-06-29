@@ -92,6 +92,9 @@ def train(
 
     s3_client = init_s3_connection()
     bucket_name = "rhods"
-    s3_client.upload_file(onnx_path_local, bucket_name, "onnx/model-v2.onnx")
+    bucket_path_tagged = "onnx/model-" + tag + ".onnx"
+    bucket_path_prod = "onnx/model-prod.onnx"
+    s3_client.upload_file(onnx_path_local, bucket_name, bucket_path_tagged)
+    s3_client.upload_file(onnx_path_local, bucket_name, bucket_path_prod)
     save_pickle(model_file, model)
 
