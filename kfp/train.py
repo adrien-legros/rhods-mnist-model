@@ -55,7 +55,7 @@ def train(
             metrics=['accuracy'])
         return model, inp, output
     mlflow.end_run()
-    mlflow.set_tracking_uri("http://mlflow-server.mlflow.svc.cluster.local:8080")
+    mlflow.set_tracking_uri("http://mnist-mlflow-server.mlflow.svc.cluster.local:8080")
     mlflow.tensorflow.autolog()
     with mlflow.start_run():
         mlflow.set_tag("git.commit", tag)
