@@ -108,6 +108,6 @@ if __name__ == '__main__':
     pipeline_conf.data_passing_method = volume_based_data_passing_method
     client = kfp_tekton.TektonClient(host=host)
     result = client.create_run_from_pipeline_func(
-        mnist_pipeline, arguments={"tag": tag}, experiment_name="mnist_kfp", pipeline_conf=pipeline_conf
+        mnist_pipeline, arguments={"tag": tag}, experiment_name="pre-prod", pipeline_conf=pipeline_conf
     )
     print(f"RUN_ID: {result.run_id}")
