@@ -90,7 +90,7 @@ def mnist_pipeline(model_obc: str = "mnist-model", tag: str = "latest"):
 
 
 if __name__ == '__main__':
-    host = "http://ds-pipeline-pipelines-definition:8888"
+    host = "http://ds-pipeline-pipelines-definition.mnist:8888"
     parser = argparse.ArgumentParser(
                         prog='Model.py',
                         description='Digit recognition model and pipeline triggering')
