@@ -1,10 +1,15 @@
-import kfp.components as comp
+from kfp.dsl import InputPath
+from kfp import dsl
 
+@dsl.component(
+    base_image="quay.io/modh/runtime-images:runtime-cuda-tensorflow-ubi9-python-3.9-2023b-20240301",
+    packages_to_install=["tf2onnx", "seaborn"],
+)
 def evaluate(
-    X_val_file: comp.InputPath(),
-    y_val_file: comp.InputPath(),
-    X_test_file: comp.InputPath(),
-    model_file: comp.InputPath()
+    X_val_file: InputPath(),
+    y_val_file: InputPath(),
+    X_test_file: InputPath(),
+    model_file: InputPath()
 ):
     import numpy as np
     import pandas as pd
@@ -20,18 +25,6 @@ def evaluate(
             target_object = pickle.load(f)
         return target_object
 
-    def init_s3_connection():
-        import boto3
-        from boto3 import session
-        import os
-        key_id = os.environ.get("AWS_ACCESS_KEY_ID")
-        secret_key = os.environ.get("AWS_SECRET_ACCESS_KEY")
-        bucket_name = os.environ.get("AWS_S3_BUCKET")
-        host = os.environ.get("AWS_S3_HOST")
-        port = os.environ.get("AWS_S3_PORT")
-        s3_endpoint = 'http://' + host + ":" + port
-        s3_client = boto3.client("s3", aws_access_key_id=key_id, aws_secret_access_key=secret_key, endpoint_url=s3_endpoint)
-        return s3_client
 
     X_val = load_pickle(X_val_file)
     y_val = load_pickle(y_val_file)

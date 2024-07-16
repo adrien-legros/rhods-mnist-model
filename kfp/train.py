@@ -1,12 +1,16 @@
-import kfp.components as comp
+from kfp import dsl
+from kfp.dsl import InputPath, OutputPath
 
+@dsl.component(
+    base_image="quay.io/modh/runtime-images:runtime-cuda-tensorflow-ubi9-python-3.9-2023b-20240301",
+    packages_to_install=["tf2onnx", "seaborn"],
+)
 def train(
-        X_train_file: comp.InputPath(),
-        y_train_file: comp.InputPath(),
-        X_val_file: comp.InputPath(),
-        y_val_file: comp.InputPath(),
-        X_test_file: comp.InputPath(),
-        model_file: comp.OutputPath(),
+        X_train_file: InputPath(),
+        y_train_file: InputPath(),
+        X_val_file: InputPath(),
+        y_val_file: InputPath(),
+        model_file: OutputPath(),
         tag: str
 ):
     import numpy as np
@@ -30,7 +34,6 @@ def train(
     y_train = load_pickle(y_train_file)
     X_val = load_pickle(X_val_file)
     y_val = load_pickle(y_val_file)
-    X_test = load_pickle(X_test_file)
 
     def build_model():
         inp = keras.Input(shape=(28,28,1), name="input_1")

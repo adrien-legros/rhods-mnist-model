@@ -1,13 +1,18 @@
-import kfp.components as comp
+from kfp.dsl import OutputPath
+from kfp import dsl
 
+@dsl.component(
+    base_image="quay.io/modh/runtime-images:runtime-cuda-tensorflow-ubi9-python-3.9-2023b-20240301",
+    packages_to_install=["tf2onnx", "seaborn"],
+)
 def pre_process(
         train_path: str,
         test_path: str,
-        X_train_file: comp.OutputPath(),
-        y_train_file: comp.OutputPath(),
-        X_val_file: comp.OutputPath(),
-        y_val_file: comp.OutputPath(),
-        X_test_file: comp.OutputPath()
+        X_train_file: OutputPath(),
+        y_train_file: OutputPath(),
+        X_val_file: OutputPath(),
+        y_val_file: OutputPath(),
+        X_test_file: OutputPath()
 ):
     import numpy as np
     import pandas as pd
