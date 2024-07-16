@@ -35,7 +35,7 @@
             "label": "",
             "ui_data": {
               "label": "Train.ipynb",
-              "image": "/notebook/mnist/mnist-notebook/static/elyra/notebook.svg",
+              "image": "/notebook/mnist/my-workbench/static/elyra/notebook.svg",
               "x_pos": 717,
               "y_pos": 308,
               "description": "Run notebook file"
@@ -104,7 +104,7 @@
             "label": "",
             "ui_data": {
               "label": "Pre-process.ipynb",
-              "image": "/notebook/mnist/mnist-notebook/static/elyra/notebook.svg",
+              "image": "/notebook/mnist/my-workbench/static/elyra/notebook.svg",
               "x_pos": 297,
               "y_pos": 180.5,
               "description": "Run notebook file"
@@ -166,7 +166,7 @@
             "label": "",
             "ui_data": {
               "label": "Evaluate.ipynb",
-              "image": "/notebook/mnist/mnist-notebook/static/elyra/notebook.svg",
+              "image": "/notebook/mnist/my-workbench/static/elyra/notebook.svg",
               "x_pos": 1076,
               "y_pos": 304,
               "description": "Run notebook file"
@@ -235,7 +235,7 @@
             "label": "",
             "ui_data": {
               "label": "Review.ipynb",
-              "image": "/notebook/mnist/mnist-notebook/static/elyra/notebook.svg",
+              "image": "/notebook/mnist/my-workbench/static/elyra/notebook.svg",
               "x_pos": 1074,
               "y_pos": 177,
               "description": "Run notebook file"
@@ -345,35 +345,36 @@
           ]
         },
         "version": 8,
+        "runtime_type": "KUBEFLOW_PIPELINES",
         "properties": {
-          "name": "mnist",
-          "runtime": "Generic",
+          "name": "mnist-completed",
+          "runtime": "Data Science Pipelines",
           "pipeline_defaults": {
-            "kubernetes_pod_annotations": [],
-            "kubernetes_pod_labels": [],
             "mounted_volumes": [],
+            "kubernetes_pod_annotations": [],
             "kubernetes_tolerations": [],
+            "kubernetes_pod_labels": [],
             "kubernetes_shared_mem_size": {},
             "env_vars": [],
             "kubernetes_secrets": [
               {
                 "env_var": "AWS_ACCESS_KEY_ID",
-                "name": "aws-connection-s3-creds",
+                "name": "aws-connection-data",
                 "key": "AWS_ACCESS_KEY_ID"
               },
               {
                 "env_var": "AWS_SECRET_ACCESS_KEY",
-                "name": "aws-connection-s3-creds",
+                "name": "aws-connection-data",
                 "key": "AWS_SECRET_ACCESS_KEY"
               },
               {
                 "env_var": "AWS_S3_BUCKET",
-                "name": "aws-connection-s3-creds",
+                "name": "aws-connection-data",
                 "key": "AWS_S3_BUCKET"
               },
               {
                 "env_var": "AWS_S3_ENDPOINT",
-                "name": "aws-connection-s3-creds",
+                "name": "aws-connection-data",
                 "key": "AWS_S3_ENDPOINT"
               }
             ],
