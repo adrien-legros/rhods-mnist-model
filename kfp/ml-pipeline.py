@@ -2,7 +2,6 @@ import argparse
 
 from kfp import dsl, Client
 from kfp.dsl import Input, Output, Dataset, Model, HTML, ClassificationMetrics, Artifact
-from typing import NamedTuple
 
 
 @dsl.component(
@@ -79,14 +78,15 @@ def pre_process(
 
 @dsl.component(
     base_image="quay.io/modh/runtime-images@sha256:de57a9c7bd6a870697d27ba0af4e3ee5dc2a2ab05f46885791bce2bffb77342d",
-    packages_to_install=["numpy", "pandas", "tensorflow", "mlflow", "tf2onnx"],
+    packages_to_install=["numpy", "pandas", "tensorflow", "tf2onnx"],
 )
 def train(
         X_train_out: Input[Artifact],
         y_train_out: Input[Artifact],
         X_val_out: Input[Artifact],
         y_val_out: Input[Artifact],
-        model_out: Output[Model],
+        model_onnx_out: Output[Model],
+        model_tf_out: Output[Model],
         tag: str):
     import numpy as np
     import pandas as pd
@@ -94,7 +94,6 @@ def train(
     from tensorflow import keras
     import subprocess
     import pickle
-    import mlflow
     import sys
     import datetime
 
@@ -135,19 +134,13 @@ def train(
             optimizer=keras.optimizers.Adam(learning_rate=0.0001),
             metrics=['accuracy'])
         return model, inp, output
-    # Model training logging with mlflow
-    mlflow.end_run()
-    mlflow.set_tracking_uri("http://mnist-mlflow-server.mlflow.svc.cluster.local:8080")
-    mlflow.tensorflow.autolog()
-    with mlflow.start_run():
-        mlflow.set_tag("git.commit", tag)
-        model, inp, out = build_model()
-        model.summary()
-        model.fit(X_train, y_train, validation_data=(X_val, y_val), epochs=1, batch_size=32,
-                        callbacks=[keras.callbacks.EarlyStopping(monitor='val_loss',mode='min',patience=10, 
-                                                                min_delta=0.005, restore_best_weights=True),
-                                keras.callbacks.ReduceLROnPlateau(monitor = 'val_loss', patience = 3)])
-    mlflow.end_run()
+    # Model training
+    model, inp, out = build_model()
+    model.summary()
+    model.fit(X_train, y_train, validation_data=(X_val, y_val), epochs=1, batch_size=32,
+                    callbacks=[keras.callbacks.EarlyStopping(monitor='val_loss',mode='min',patience=10, 
+                                                            min_delta=0.005, restore_best_weights=True),
+                            keras.callbacks.ReduceLROnPlateau(monitor = 'val_loss', patience = 3)])
     # Metadata declaration
     metadata = {
         "framework": tf.__version__,
@@ -155,14 +148,12 @@ def train(
         "creation_date": str(datetime.datetime.now()),
         "tag": tag
     }
-    uri = f"s3://rhods/onnx/model-{tag}.onnx"
-    model_out.metadata = metadata
-    model_out.uri = uri
+    model_tf_out.metadata = metadata
+    model_onnx_out.metadata = metadata
     # Save model
-    tf.saved_model.save(model, model_path_local)
+    tf.saved_model.save(model, model_tf_out.path)
     # Convert and export model
-    model_path_local = '/tmp/saved_model'
-    cmd = 'python -m tf2onnx.convert --saved-model ' + model_path_local + ' --output ' + model_out.path + ' --opset 13'
+    cmd = 'python -m tf2onnx.convert --saved-model ' + model_tf_out.path + ' --output ' + model_onnx_out.path + ' --opset 13'
     proc = subprocess.run(cmd.split(), capture_output=True)
     print(proc.returncode)
     print(proc.stdout.decode('ascii'))
@@ -170,20 +161,20 @@ def train(
 
 @dsl.component(
     base_image="quay.io/modh/runtime-images@sha256:de57a9c7bd6a870697d27ba0af4e3ee5dc2a2ab05f46885791bce2bffb77342d",
-    packages_to_install=["numpy", "pandas", "tensorflow", "scikit-learn"],
+    packages_to_install=["numpy", "pandas", "tensorflow", "scikit-learn", "onnxruntime"],
 )
 def evaluate(
     X_val_out: Input[Artifact],
     y_val_out: Input[Artifact],
-    X_test_out: Input[Artifact],
-    model_out: Input[Model]
+    model_onnx_out: Input[Model]
 ):
     import numpy as np
     import pandas as pd
     import pickle
     import tensorflow as tf
+    import onnxruntime as ort
+    
     from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
-
     from sklearn.metrics import confusion_matrix
     from keras import backend as K
 
@@ -191,12 +182,17 @@ def evaluate(
         with open(object_file, "rb") as f:
             target_object = pickle.load(f)
         return target_object
+    
 
     X_val = load_pickle(X_val_out.path)
     y_val = load_pickle(y_val_out.path)
-    X_test = load_pickle(X_test_out.path)
-    model = load_pickle(model_out.path)
-
+    
+    ort_sess = ort.InferenceSession(model_onnx_out.path)
+    outputs = ort_sess.run(None, {'inputs': X_val.astype(np.float32)})
+    
+    y_val_pred = np.argmax(outputs[0], axis=1)
+    y_val_true = np.argmax(y_val,axis=1)
+    
     # Precision (using keras backend)
     def precision_metric(y_true, y_pred):
         threshold = 0.5  # Training threshold 0.5
@@ -230,11 +226,6 @@ def evaluate(
         f1 = 2 * ((precision * recall) / (recall+precision+K.epsilon()))
         return f1
 
-    y_val_pred = np.argmax(model.predict(X_val), axis=1)
-    y_val_pred
-    y_val_true = np.argmax(y_val,axis=1)
-    y_val_true
-
     acc = accuracy_score(y_val_true, y_val_pred)
     f1_macro = f1_score(y_val_true, y_val_pred, average="macro")
     rec = recall_score(y_val_true, y_val_pred, average="macro")
@@ -265,8 +256,8 @@ def mnist_pipeline(model_obc: str = "mnist-model", tag: str = "latest"):
     y_val_out = pre_process_task.outputs["y_val_out"]
     X_test_out = pre_process_task.outputs["X_test_out"]
     train_task = train(X_train_out=X_train_out, y_train_out=y_train_out, X_val_out=X_val_out, y_val_out=y_val_out, tag=tag)
-    model_out = train_task.outputs["model_out"]
-    evaluate_task = evaluate(X_val_out=X_val_out, y_val_out=y_val_out, X_test_out=X_test_out, model_out=model_out)
+    model_onnx_out = train_task.outputs["model_onnx_out"]
+    evaluate_task = evaluate(X_val_out=X_val_out, y_val_out=y_val_out, model_onnx_out=model_onnx_out)
 
 if __name__ == '__main__':
     host = "http://ds-pipeline-dspa.mnist:8888"
