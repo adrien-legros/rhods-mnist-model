@@ -146,7 +146,8 @@ def train(
         "framework": tf.__version__,
         "python_version": sys.version,
         "creation_date": str(datetime.datetime.now()),
-        "tag": tag
+        "tag": tag,
+        "dummy": "foo"
     }
     model_tf_out.metadata = metadata
     model_onnx_out.metadata = metadata
