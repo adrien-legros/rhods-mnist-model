@@ -1,7 +1,7 @@
 import argparse
 
 from kfp import dsl, Client
-from kfp.dsl import Input, Output, Dataset, Model, HTML, ClassificationMetrics, Artifact
+from kfp.dsl import Input, Output, Dataset, Model, Metrics, Artifact, ClassificationMetrics
 
 
 @dsl.component(
@@ -14,8 +14,7 @@ def pre_process(
         X_train_out: Output[Artifact],
         y_train_out: Output[Artifact],
         X_val_out: Output[Artifact],
-        y_val_out: Output[Artifact],
-        X_test_out: Output[Artifact]
+        y_val_out: Output[Artifact]
 ):
     import numpy as np
     import pandas as pd
@@ -67,14 +66,11 @@ def pre_process(
     X_val = features_pipeline.fit_transform(X_val)
     y_val = target_pipeline.fit_transform(y_val.values.reshape(-1, 1))
     y_val = y_val.toarray()
-    X_test = features_pipeline.fit_transform(df_test)
 
     save_pickle(X_train_out.path, X_train)
     save_pickle(y_train_out.path, y_train)
     save_pickle(X_val_out.path, X_val)
     save_pickle(y_val_out.path, y_val)
-    save_pickle(X_test_out.path, X_test)
-
 
 @dsl.component(
     base_image="quay.io/modh/runtime-images@sha256:de57a9c7bd6a870697d27ba0af4e3ee5dc2a2ab05f46885791bce2bffb77342d",
@@ -167,7 +163,9 @@ def train(
 def evaluate(
     X_val_out: Input[Artifact],
     y_val_out: Input[Artifact],
-    model_onnx_out: Input[Model]
+    model_onnx_out: Input[Model],
+    metrics: Output[Metrics],
+    classification_metrics: Output[ClassificationMetrics]
 ):
     import numpy as np
     import pandas as pd
@@ -175,8 +173,7 @@ def evaluate(
     import tensorflow as tf
     import onnxruntime as ort
     
-    from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
-    from sklearn.metrics import confusion_matrix
+    from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score, roc_curve, confusion_matrix
     from keras import backend as K
 
     def load_pickle(object_file):
@@ -226,11 +223,19 @@ def evaluate(
         recall = recall_metric(y_true, y_pred)
         f1 = 2 * ((precision * recall) / (recall+precision+K.epsilon()))
         return f1
-
     acc = accuracy_score(y_val_true, y_val_pred)
+    metrics.log_metric("accuracy", acc * 100)
     f1_macro = f1_score(y_val_true, y_val_pred, average="macro")
+    metrics.log_metric("f1_score", f1_macro)
     rec = recall_score(y_val_true, y_val_pred, average="macro")
+    metrics.log_metric("recall", rec)
     prec = precision_score(y_val_true, y_val_pred, average="macro")
+    metrics.log_metric("precision", prec)
+    #cm = confusion_matrix(np.argmax(y_val,axis=1), y_val_pred)
+    #classification_metrics.log_confusion_matrix([f"{i}" for i in range(1, 10)], cm.tolist())
+    #fpr, tpr, thresholds = roc_curve(
+    #    y_true=y_val_true, y_score=y_val_pred, pos_label=True)
+    #classification_metrics.log_roc_curve(fpr, tpr, thresholds)
     print(f'accuracy_score: {acc}')
     print(f'f1_score_macro: {f1_macro}')
     print(f'precision_score: {prec}')
@@ -255,7 +260,6 @@ def mnist_pipeline(model_obc: str = "mnist-model", tag: str = "latest"):
     y_train_out = pre_process_task.outputs["y_train_out"]
     X_val_out = pre_process_task.outputs["X_val_out"]
     y_val_out = pre_process_task.outputs["y_val_out"]
-    X_test_out = pre_process_task.outputs["X_test_out"]
     train_task = train(X_train_out=X_train_out, y_train_out=y_train_out, X_val_out=X_val_out, y_val_out=y_val_out, tag=tag)
     model_onnx_out = train_task.outputs["model_onnx_out"]
     evaluate_task = evaluate(X_val_out=X_val_out, y_val_out=y_val_out, model_onnx_out=model_onnx_out)
