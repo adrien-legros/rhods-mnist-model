@@ -1,4 +1,5 @@
 import argparse
+import kfp 
 
 from kfp import dsl, Client
 from kfp.dsl import Input, Output, Dataset, Model, Metrics, Artifact, ClassificationMetrics
@@ -272,7 +273,30 @@ if __name__ == '__main__':
     parser.add_argument('-t', '--tag')
     args = parser.parse_args()
     tag = args.tag
+    kfp.compiler.Compiler().compile(
+        pipeline_func=mnist_pipeline,
+        package_path='mnist-pipeline.yaml',
+        pipeline_parameters={'tag': tag},
+    )
     client = Client(host=host)
-    run = client.create_run_from_pipeline_func(mnist_pipeline, arguments={"tag": tag})
-    print(run)
-    print(f"RUN_ID: {run.run_id}")
+    pipeline_name = "Digit recognition pipeline - KFP SDK"
+    try:
+        pipeline = client.upload_pipeline(pipeline_package_path="mnist-pipeline.yaml", pipeline_name=pipeline_name, description="KFP created digit recognition pipeline")
+        print(pipeline)
+        pipeline_id = pipeline.pipeline_id
+    except Exception as e:
+        print(f"Exception raised: {e}")
+        pipeline_id = client.get_pipeline_id(name=pipeline_name)
+    print(f"Pipeline Id: {pipeline_id}")
+    #client.upload_pipeline_version(pipeline_id=pipeline_id, pipeline_version_name="v1", pipeline_package_path="mnist-pipeline.yaml")
+    pipeline_versions = client.list_pipeline_versions(pipeline_id=pipeline_id)
+    pipeline_version_id = pipeline_versions.pipeline_versions[0].pipeline_version_id
+    print(f"Pipeline Version Id: {pipeline_version_id}")
+    experiment = client.create_experiment(name="git", description=f"Experiment created on git PR")
+    experiment_id = experiment.experiment_id
+    print(f"Experiment Id: {experiment_id}")
+    pipeline_run = client.run_pipeline(job_name=tag, pipeline_id=pipeline_id, experiment_id=experiment_id, version_id=pipeline_version_id, enable_caching=True)
+    print(pipeline_run)
+    #run = client.create_run_from_pipeline_func(mnist_pipeline, arguments={"tag": tag})
+    #print(run)
+    #print(f"RUN_ID: {run.run_id}")
