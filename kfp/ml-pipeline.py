@@ -1,7 +1,9 @@
 import argparse
+import kfp 
 
 from kfp import dsl, Client
 from kfp.dsl import Input, Output, Dataset, Model, Metrics, Artifact, ClassificationMetrics
+from datetime import datetime
 
 
 @dsl.component(
@@ -231,11 +233,11 @@ def evaluate(
     metrics.log_metric("recall", rec)
     prec = precision_score(y_val_true, y_val_pred, average="macro")
     metrics.log_metric("precision", prec)
-    #cm = confusion_matrix(np.argmax(y_val,axis=1), y_val_pred)
-    #classification_metrics.log_confusion_matrix([f"{i}" for i in range(1, 10)], cm.tolist())
-    #fpr, tpr, thresholds = roc_curve(
-    #    y_true=y_val_true, y_score=y_val_pred, pos_label=True)
-    #classification_metrics.log_roc_curve(fpr, tpr, thresholds)
+    cm = confusion_matrix(np.argmax(y_val,axis=1), y_val_pred)
+    classification_metrics.log_confusion_matrix([f"{i}" for i in range(0, 10)], cm.tolist())
+    fpr, tpr, thresholds = roc_curve(
+        y_true=y_val_true, y_score=y_val_pred, pos_label=True)
+    classification_metrics.log_roc_curve(fpr[1:], tpr[1:], thresholds[1:]) # [1:] Workaround to slip Infinity value
     print(f'accuracy_score: {acc}')
     print(f'f1_score_macro: {f1_macro}')
     print(f'precision_score: {prec}')
@@ -248,12 +250,12 @@ def mnist_pipeline(model_obc: str = "mnist-model", tag: str = "latest"):
     import_train_ds = dsl.importer(
         artifact_uri='s3://rhods/data/train.csv',
         artifact_class=dsl.Dataset,
-        reimport=True,
+        reimport=False,
         metadata={})
     import_test_ds = dsl.importer(
         artifact_uri='s3://rhods/data/test.csv',
         artifact_class=dsl.Dataset,
-        reimport=True,
+        reimport=False,
         metadata={})
     pre_process_task = pre_process(train_ds=import_train_ds.output, test_ds=import_test_ds.output)
     X_train_out = pre_process_task.outputs["X_train_out"]
@@ -272,7 +274,28 @@ if __name__ == '__main__':
     parser.add_argument('-t', '--tag')
     args = parser.parse_args()
     tag = args.tag
+    kfp.compiler.Compiler().compile(
+        pipeline_func=mnist_pipeline,
+        package_path='mnist-pipeline.yaml',
+        pipeline_parameters={'tag': tag},
+    )
     client = Client(host=host)
-    run = client.create_run_from_pipeline_func(mnist_pipeline, arguments={"tag": tag})
-    print(run)
-    print(f"RUN_ID: {run.run_id}")
+    pipeline_name = "Digit recognition pipeline - KFP SDK"
+    try:
+        pipeline = client.upload_pipeline(pipeline_package_path="mnist-pipeline.yaml", pipeline_name=pipeline_name, description="KFP created digit recognition pipeline")
+        print(pipeline)
+        pipeline_id = pipeline.pipeline_id
+        pipeline_versions = client.list_pipeline_versions(pipeline_id=pipeline_id)
+        pipeline_version_id = pipeline_versions.pipeline_versions[0].pipeline_version_id
+    except Exception as e:
+        print(f"Exception raised: {e}")
+        pipeline_id = client.get_pipeline_id(name=pipeline_name)
+        pipeline_version = client.upload_pipeline_version(pipeline_id=pipeline_id, pipeline_version_name=datetime.now(), pipeline_package_path="mnist-pipeline.yaml")
+        pipeline_version_id = pipeline_version.pipeline_version_id
+    print(f"Pipeline Id: {pipeline_id}")
+    print(f"Pipeline Version Id: {pipeline_version_id}")
+    experiment = client.create_experiment(name="git", description=f"Experiment created on git PR")
+    experiment_id = experiment.experiment_id
+    print(f"Experiment Id: {experiment_id}")
+    pipeline_run = client.run_pipeline(job_name=tag, pipeline_id=pipeline_id, experiment_id=experiment_id, version_id=pipeline_version_id, enable_caching=True)
+    print(pipeline_run)
