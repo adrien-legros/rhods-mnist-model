@@ -1,0 +1,471 @@
+# PIPELINE DEFINITION
+# Name: mnist
+# Inputs:
+#    model_obc: str [Default: 'mnist-model']
+#    tag: str [Default: '2024-09-17 08:23:25.384207']
+# Outputs:
+#    evaluate-classification_metrics: system.ClassificationMetrics
+#    evaluate-metrics: system.Metrics
+components:
+  comp-evaluate:
+    executorLabel: exec-evaluate
+    inputDefinitions:
+      artifacts:
+        X_val_out:
+          artifactType:
+            schemaTitle: system.Artifact
+            schemaVersion: 0.0.1
+        model_onnx_out:
+          artifactType:
+            schemaTitle: system.Model
+            schemaVersion: 0.0.1
+        y_val_out:
+          artifactType:
+            schemaTitle: system.Artifact
+            schemaVersion: 0.0.1
+    outputDefinitions:
+      artifacts:
+        classification_metrics:
+          artifactType:
+            schemaTitle: system.ClassificationMetrics
+            schemaVersion: 0.0.1
+        metrics:
+          artifactType:
+            schemaTitle: system.Metrics
+            schemaVersion: 0.0.1
+  comp-importer:
+    executorLabel: exec-importer
+    inputDefinitions:
+      parameters:
+        uri:
+          parameterType: STRING
+    outputDefinitions:
+      artifacts:
+        artifact:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+  comp-importer-2:
+    executorLabel: exec-importer-2
+    inputDefinitions:
+      parameters:
+        uri:
+          parameterType: STRING
+    outputDefinitions:
+      artifacts:
+        artifact:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+  comp-pre-process:
+    executorLabel: exec-pre-process
+    inputDefinitions:
+      artifacts:
+        test_ds:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+        train_ds:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+    outputDefinitions:
+      artifacts:
+        X_train_out:
+          artifactType:
+            schemaTitle: system.Artifact
+            schemaVersion: 0.0.1
+        X_val_out:
+          artifactType:
+            schemaTitle: system.Artifact
+            schemaVersion: 0.0.1
+        y_train_out:
+          artifactType:
+            schemaTitle: system.Artifact
+            schemaVersion: 0.0.1
+        y_val_out:
+          artifactType:
+            schemaTitle: system.Artifact
+            schemaVersion: 0.0.1
+  comp-train:
+    executorLabel: exec-train
+    inputDefinitions:
+      artifacts:
+        X_train_out:
+          artifactType:
+            schemaTitle: system.Artifact
+            schemaVersion: 0.0.1
+        X_val_out:
+          artifactType:
+            schemaTitle: system.Artifact
+            schemaVersion: 0.0.1
+        y_train_out:
+          artifactType:
+            schemaTitle: system.Artifact
+            schemaVersion: 0.0.1
+        y_val_out:
+          artifactType:
+            schemaTitle: system.Artifact
+            schemaVersion: 0.0.1
+      parameters:
+        tag:
+          parameterType: STRING
+    outputDefinitions:
+      artifacts:
+        model_onnx_out:
+          artifactType:
+            schemaTitle: system.Model
+            schemaVersion: 0.0.1
+        model_tf_out:
+          artifactType:
+            schemaTitle: system.Model
+            schemaVersion: 0.0.1
+deploymentSpec:
+  executors:
+    exec-evaluate:
+      container:
+        args:
+        - --executor_input
+        - '{{$}}'
+        - --function_to_execute
+        - evaluate
+        command:
+        - sh
+        - -c
+        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
+          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
+          \ python3 -m pip install --quiet --no-warn-script-location 'kfp==2.8.0'\
+          \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"'  &&\
+          \  python3 -m pip install --quiet --no-warn-script-location 'numpy' 'pandas'\
+          \ 'tensorflow' 'scikit-learn' 'onnxruntime' && \"$0\" \"$@\"\n"
+        - sh
+        - -ec
+        - 'program_path=$(mktemp -d)
+
+
+          printf "%s" "$0" > "$program_path/ephemeral_component.py"
+
+          _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+
+          '
+        - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
+          \ *\n\ndef evaluate(\n    X_val_out: Input[Artifact],\n    y_val_out: Input[Artifact],\n\
+          \    model_onnx_out: Input[Model],\n    metrics: Output[Metrics],\n    classification_metrics:\
+          \ Output[ClassificationMetrics]\n):\n    import numpy as np\n    import\
+          \ pandas as pd\n    import pickle\n    import tensorflow as tf\n    import\
+          \ onnxruntime as ort\n\n    from sklearn.metrics import accuracy_score,\
+          \ f1_score, precision_score, recall_score, roc_curve, confusion_matrix\n\
+          \    from keras import backend as K\n\n    def load_pickle(object_file):\n\
+          \        with open(object_file, \"rb\") as f:\n            target_object\
+          \ = pickle.load(f)\n        return target_object\n\n\n    X_val = load_pickle(X_val_out.path)\n\
+          \    y_val = load_pickle(y_val_out.path)\n\n    ort_sess = ort.InferenceSession(model_onnx_out.path)\n\
+          \    outputs = ort_sess.run(None, {'inputs': X_val.astype(np.float32)})\n\
+          \n    y_val_pred = np.argmax(outputs[0], axis=1)\n    y_val_true = np.argmax(y_val,axis=1)\n\
+          \n    # Precision (using keras backend)\n    def precision_metric(y_true,\
+          \ y_pred):\n        threshold = 0.5  # Training threshold 0.5\n        y_pred_y\
+          \ = K.cast(K.greater(K.clip(y_pred, 0, 1), threshold), K.floatx())\n\n \
+          \       true_positives = K.sum(K.clip(y_true * y_pred, 0, 1))\n        false_negatives\
+          \ = K.sum(K.clip(y_true * (1-y_pred), 0, 1))\n        false_positives =\
+          \ K.sum(K.clip((1-y_true) * y_pred, 0, 1))\n        true_negatives = K.sum(K.clip((1\
+          \ - y_true) * (1-y_pred), 0, 1))\n\n        precision = true_positives /\
+          \ (true_positives + false_positives + K.epsilon())\n        return precision\n\
+          \n    # Recall (using keras backend)\n    def recall_metric(y_true, y_pred):\n\
+          \        threshold = 0.5 #Training threshold 0.5\n        y_pred = K.cast(K.greater(K.clip(y_pred,\
+          \ 0, 1), threshold), K.floatx())\n\n        true_positives = K.sum(K.clip(y_true\
+          \ * y_pred, 0, 1))\n        false_negatives = K.sum(K.clip(y_true * (1-y_pred),\
+          \ 0, 1))\n        false_positives = K.sum(K.clip((1-y_true) * y_pred, 0,\
+          \ 1))\n        true_negatives = K.sum(K.clip((1 - y_true) * (1-y_pred),\
+          \ 0, 1))\n\n        recall = true_positives / (true_positives + false_negatives\
+          \ + K.epsilon())\n        return recall\n\n    # F1-score (using keras backend)\n\
+          \    def f1_metric(y_true, y_pred):\n        precision = precision_metric(y_true,\
+          \ y_pred)\n        recall = recall_metric(y_true, y_pred)\n        f1 =\
+          \ 2 * ((precision * recall) / (recall+precision+K.epsilon()))\n        return\
+          \ f1\n    acc = accuracy_score(y_val_true, y_val_pred)\n    metrics.log_metric(\"\
+          accuracy\", acc * 100)\n    f1_macro = f1_score(y_val_true, y_val_pred,\
+          \ average=\"macro\")\n    metrics.log_metric(\"f1_score\", f1_macro)\n \
+          \   rec = recall_score(y_val_true, y_val_pred, average=\"macro\")\n    metrics.log_metric(\"\
+          recall\", rec)\n    prec = precision_score(y_val_true, y_val_pred, average=\"\
+          macro\")\n    metrics.log_metric(\"precision\", prec)\n    cm = confusion_matrix(np.argmax(y_val,axis=1),\
+          \ y_val_pred)\n    classification_metrics.log_confusion_matrix([f\"{i}\"\
+          \ for i in range(0, 10)], cm.tolist())\n    fpr, tpr, thresholds = roc_curve(\n\
+          \        y_true=y_val_true, y_score=y_val_pred, pos_label=True)\n    classification_metrics.log_roc_curve(fpr[1:],\
+          \ tpr[1:], thresholds[1:]) # [1:] Workaround to slip Infinity value\n  \
+          \  print(f'accuracy_score: {acc}')\n    print(f'f1_score_macro: {f1_macro}')\n\
+          \    print(f'precision_score: {prec}')\n    print(f'recall_score: {rec}')\n\
+          \n"
+        image: quay.io/modh/runtime-images@sha256:de57a9c7bd6a870697d27ba0af4e3ee5dc2a2ab05f46885791bce2bffb77342d
+    exec-importer:
+      importer:
+        artifactUri:
+          constant: s3://rhods/data/train.csv
+        typeSchema:
+          schemaTitle: system.Dataset
+          schemaVersion: 0.0.1
+    exec-importer-2:
+      importer:
+        artifactUri:
+          constant: s3://rhods/data/test.csv
+        typeSchema:
+          schemaTitle: system.Dataset
+          schemaVersion: 0.0.1
+    exec-pre-process:
+      container:
+        args:
+        - --executor_input
+        - '{{$}}'
+        - --function_to_execute
+        - pre_process
+        command:
+        - sh
+        - -c
+        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
+          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
+          \ python3 -m pip install --quiet --no-warn-script-location 'kfp==2.8.0'\
+          \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"'  &&\
+          \  python3 -m pip install --quiet --no-warn-script-location 'numpy' 'pandas'\
+          \ 'matplotlib' 'seaborn' 'tensorflow' 'scikit-learn' && \"$0\" \"$@\"\n"
+        - sh
+        - -ec
+        - 'program_path=$(mktemp -d)
+
+
+          printf "%s" "$0" > "$program_path/ephemeral_component.py"
+
+          _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+
+          '
+        - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
+          \ *\n\ndef pre_process(\n        train_ds: Input[Dataset],\n        test_ds:\
+          \ Input[Dataset],\n        X_train_out: Output[Artifact],\n        y_train_out:\
+          \ Output[Artifact],\n        X_val_out: Output[Artifact],\n        y_val_out:\
+          \ Output[Artifact]\n):\n    import numpy as np\n    import pandas as pd\n\
+          \    from matplotlib import pyplot as plt\n    import seaborn as sns\n \
+          \   import tensorflow as tf\n    from tensorflow import keras\n\n\n    from\
+          \ sklearn.model_selection import train_test_split\n    from sklearn.pipeline\
+          \ import Pipeline\n    from sklearn.compose import ColumnTransformer\n \
+          \   from sklearn.preprocessing import StandardScaler, MinMaxScaler\n   \
+          \ from sklearn.base import BaseEstimator, TransformerMixin\n    from sklearn.preprocessing\
+          \ import OneHotEncoder\n\n    import pickle\n\n    def save_pickle(object_file,\
+          \ target_object):\n        with open(object_file, \"wb\") as f:\n      \
+          \      pickle.dump(target_object, f)\n\n    df_train = pd.read_csv(train_ds.path)\n\
+          \    df_test = pd.read_csv(test_ds.path)\n\n    X = df_train.iloc[:,1:]\n\
+          \    y = df_train.iloc[:, 0]\n    X_train, X_val, y_train, y_val = train_test_split(X,\
+          \ y, test_size=0.1, random_state=15)\n\n    class ReshapeFunc(BaseEstimator,\
+          \ TransformerMixin):\n        def __init__(self):\n            pass\n  \
+          \      def fit(self, X, y=None):\n            return self\n        def transform(self,\
+          \ X, y=None):\n            X = X.reshape((-1,28,28,1))\n            return\
+          \ X\n    features_pipeline = Pipeline(steps=[\n        ('Normalize', MinMaxScaler()),\n\
+          \        ('Reshape', ReshapeFunc())\n    ])\n    target_pipeline = Pipeline(steps=[\n\
+          \        ('OneHot', OneHotEncoder())\n    ])\n\n    X_train = features_pipeline.fit_transform(X_train)\n\
+          \    y_train = target_pipeline.fit_transform(y_train.values.reshape(-1,1))\n\
+          \    y_train = y_train.toarray()\n    X_val = features_pipeline.fit_transform(X_val)\n\
+          \    y_val = target_pipeline.fit_transform(y_val.values.reshape(-1, 1))\n\
+          \    y_val = y_val.toarray()\n\n    save_pickle(X_train_out.path, X_train)\n\
+          \    save_pickle(y_train_out.path, y_train)\n    save_pickle(X_val_out.path,\
+          \ X_val)\n    save_pickle(y_val_out.path, y_val)\n\n"
+        image: quay.io/modh/runtime-images@sha256:de57a9c7bd6a870697d27ba0af4e3ee5dc2a2ab05f46885791bce2bffb77342d
+    exec-train:
+      container:
+        args:
+        - --executor_input
+        - '{{$}}'
+        - --function_to_execute
+        - train
+        command:
+        - sh
+        - -c
+        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
+          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
+          \ python3 -m pip install --quiet --no-warn-script-location 'kfp==2.8.0'\
+          \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"'  &&\
+          \  python3 -m pip install --quiet --no-warn-script-location 'numpy' 'pandas'\
+          \ 'tensorflow' 'tf2onnx' && \"$0\" \"$@\"\n"
+        - sh
+        - -ec
+        - 'program_path=$(mktemp -d)
+
+
+          printf "%s" "$0" > "$program_path/ephemeral_component.py"
+
+          _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+
+          '
+        - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
+          \ *\n\ndef train(\n        X_train_out: Input[Artifact],\n        y_train_out:\
+          \ Input[Artifact],\n        X_val_out: Input[Artifact],\n        y_val_out:\
+          \ Input[Artifact],\n        model_onnx_out: Output[Model],\n        model_tf_out:\
+          \ Output[Model],\n        tag: str):\n    import numpy as np\n    import\
+          \ pandas as pd\n    import tensorflow as tf\n    from tensorflow import\
+          \ keras\n    import subprocess\n    import pickle\n    import sys\n    import\
+          \ datetime\n\n    # Pickle helpers\n    def save_pickle(object_file, target_object):\n\
+          \        with open(object_file, \"wb\") as f:\n            pickle.dump(target_object,\
+          \ f)\n\n    def load_pickle(object_file):\n        with open(object_file,\
+          \ \"rb\") as f:\n            target_object = pickle.load(f)\n        return\
+          \ target_object            \n    # Load pre processed data\n    X_train\
+          \ = load_pickle(X_train_out.path)\n    y_train = load_pickle(y_train_out.path)\n\
+          \    X_val = load_pickle(X_val_out.path)\n    y_val = load_pickle(y_val_out.path)\n\
+          \    # Model architecture\n    def build_model():\n        inp = keras.Input(shape=(28,28,1),\
+          \ name=\"input_1\")\n        x = keras.layers.Conv2D(filters=32, kernel_size=(5,5),\
+          \ strides=(1,1),padding='SAME', \n                                activation='relu')(inp)\n\
+          \        x = keras.layers.MaxPool2D(pool_size=(2,2))(x)\n        x = keras.layers.BatchNormalization()(x)\n\
+          \        x = keras.layers.Dropout(0.25)(x)\n        x = keras.layers.Conv2D(filters=64,\
+          \ kernel_size=(5,5), padding='SAME', activation='relu')(x)\n        x =\
+          \ keras.layers.MaxPool2D(pool_size=(2,2))(x)\n        x = keras.layers.BatchNormalization()(x)\n\
+          \        x = keras.layers.Dropout(0.25)(x)\n        x = keras.layers.Flatten()(x)\n\
+          \        x = keras.layers.Dense(256, activation='relu')(x)\n        x =\
+          \ keras.layers.Dropout(0.5)(x)\n        output = keras.layers.Dense(10,\
+          \ activation='softmax')(x)\n\n        model = keras.Model(inputs=inp, outputs=output)\n\
+          \        model.compile(\n            loss=keras.losses.CategoricalCrossentropy(),\n\
+          \            optimizer=keras.optimizers.Adam(learning_rate=0.0001),\n  \
+          \          metrics=['accuracy'])\n        return model, inp, output\n  \
+          \  # Model training\n    model, inp, out = build_model()\n    model.summary()\n\
+          \    model.fit(X_train, y_train, validation_data=(X_val, y_val), epochs=1,\
+          \ batch_size=32,\n                    callbacks=[keras.callbacks.EarlyStopping(monitor='val_loss',mode='min',patience=10,\
+          \ \n                                                            min_delta=0.005,\
+          \ restore_best_weights=True),\n                            keras.callbacks.ReduceLROnPlateau(monitor\
+          \ = 'val_loss', patience = 3)])\n    # Metadata declaration\n    metadata\
+          \ = {\n        \"framework\": tf.__version__,\n        \"python_version\"\
+          : sys.version,\n        \"creation_date\": str(datetime.now()),\n      \
+          \  \"tag\": tag,\n        \"dummy\": \"foo\"\n    }\n    model_tf_out.metadata\
+          \ = metadata\n    model_onnx_out.metadata = metadata\n    # Save model\n\
+          \    tf.saved_model.save(model, model_tf_out.path)\n    # Convert and export\
+          \ model\n    cmd = 'python -m tf2onnx.convert --saved-model ' + model_tf_out.path\
+          \ + ' --output ' + model_onnx_out.path + ' --opset 13'\n    proc = subprocess.run(cmd.split(),\
+          \ capture_output=True)\n    print(proc.returncode)\n    print(proc.stdout.decode('ascii'))\n\
+          \    print(proc.stderr.decode('ascii'))\n\n"
+        image: quay.io/modh/runtime-images@sha256:de57a9c7bd6a870697d27ba0af4e3ee5dc2a2ab05f46885791bce2bffb77342d
+pipelineInfo:
+  name: mnist
+root:
+  dag:
+    outputs:
+      artifacts:
+        evaluate-classification_metrics:
+          artifactSelectors:
+          - outputArtifactKey: classification_metrics
+            producerSubtask: evaluate
+        evaluate-metrics:
+          artifactSelectors:
+          - outputArtifactKey: metrics
+            producerSubtask: evaluate
+    tasks:
+      evaluate:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-evaluate
+        dependentTasks:
+        - pre-process
+        - train
+        inputs:
+          artifacts:
+            X_val_out:
+              taskOutputArtifact:
+                outputArtifactKey: X_val_out
+                producerTask: pre-process
+            model_onnx_out:
+              taskOutputArtifact:
+                outputArtifactKey: model_onnx_out
+                producerTask: train
+            y_val_out:
+              taskOutputArtifact:
+                outputArtifactKey: y_val_out
+                producerTask: pre-process
+        taskInfo:
+          name: evaluate
+      importer:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-importer
+        inputs:
+          parameters:
+            uri:
+              runtimeValue:
+                constant: s3://rhods/data/train.csv
+        taskInfo:
+          name: importer
+      importer-2:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-importer-2
+        inputs:
+          parameters:
+            uri:
+              runtimeValue:
+                constant: s3://rhods/data/test.csv
+        taskInfo:
+          name: importer-2
+      pre-process:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-pre-process
+        dependentTasks:
+        - importer
+        - importer-2
+        inputs:
+          artifacts:
+            test_ds:
+              taskOutputArtifact:
+                outputArtifactKey: artifact
+                producerTask: importer-2
+            train_ds:
+              taskOutputArtifact:
+                outputArtifactKey: artifact
+                producerTask: importer
+        taskInfo:
+          name: pre-process
+      train:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-train
+        dependentTasks:
+        - pre-process
+        inputs:
+          artifacts:
+            X_train_out:
+              taskOutputArtifact:
+                outputArtifactKey: X_train_out
+                producerTask: pre-process
+            X_val_out:
+              taskOutputArtifact:
+                outputArtifactKey: X_val_out
+                producerTask: pre-process
+            y_train_out:
+              taskOutputArtifact:
+                outputArtifactKey: y_train_out
+                producerTask: pre-process
+            y_val_out:
+              taskOutputArtifact:
+                outputArtifactKey: y_val_out
+                producerTask: pre-process
+          parameters:
+            tag:
+              componentInputParameter: tag
+        taskInfo:
+          name: train
+  inputDefinitions:
+    parameters:
+      model_obc:
+        defaultValue: mnist-model
+        isOptional: true
+        parameterType: STRING
+      tag:
+        defaultValue: '2024-09-17 08:23:25.384207'
+        isOptional: true
+        parameterType: STRING
+  outputDefinitions:
+    artifacts:
+      evaluate-classification_metrics:
+        artifactType:
+          schemaTitle: system.ClassificationMetrics
+          schemaVersion: 0.0.1
+      evaluate-metrics:
+        artifactType:
+          schemaTitle: system.Metrics
+          schemaVersion: 0.0.1
+schemaVersion: 2.1.0
+sdkVersion: kfp-2.8.0
