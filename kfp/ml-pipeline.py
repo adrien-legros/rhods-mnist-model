@@ -267,19 +267,22 @@ def mnist_pipeline(model_obc: str = "mnist-model", tag: str = "latest"):
     evaluate_task = evaluate(X_val_out=X_val_out, y_val_out=y_val_out, model_onnx_out=model_onnx_out)
 
 if __name__ == '__main__':
-    host = "http://ds-pipeline-dspa.mnist:8888"
+    host = "https://ds-pipeline-dspa.mnist:8888"
     parser = argparse.ArgumentParser(
                         prog='Model.py',
                         description='Digit recognition model and pipeline triggering')
     parser.add_argument('-t', '--tag')
     args = parser.parse_args()
     tag = args.tag
+    now = str(datetime.now())
+    if not tag:
+        tag = now
     kfp.compiler.Compiler().compile(
         pipeline_func=mnist_pipeline,
         package_path='mnist-pipeline.yaml',
         pipeline_parameters={'tag': tag},
     )
-    client = Client(host=host)
+    client = Client(host=host, verify_ssl=False)
     pipeline_name = "Digit recognition pipeline - KFP SDK"
     try:
         pipeline = client.upload_pipeline(pipeline_package_path="mnist-pipeline.yaml", pipeline_name=pipeline_name, description="KFP created digit recognition pipeline")
@@ -290,7 +293,7 @@ if __name__ == '__main__':
     except Exception as e:
         print(f"Exception raised: {e}")
         pipeline_id = client.get_pipeline_id(name=pipeline_name)
-        pipeline_version = client.upload_pipeline_version(pipeline_id=pipeline_id, pipeline_version_name=datetime.now(), pipeline_package_path="mnist-pipeline.yaml")
+        pipeline_version = client.upload_pipeline_version(pipeline_id=pipeline_id, pipeline_version_name=now, pipeline_package_path="mnist-pipeline.yaml")
         pipeline_version_id = pipeline_version.pipeline_version_id
     print(f"Pipeline Id: {pipeline_id}")
     print(f"Pipeline Version Id: {pipeline_version_id}")
