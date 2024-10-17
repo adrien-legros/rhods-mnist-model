@@ -5,6 +5,25 @@ from kfp import dsl, Client
 from kfp.dsl import Input, Output, Dataset, Model, Metrics, Artifact, ClassificationMetrics
 from datetime import datetime
 
+@dsl.component(
+    base_image="quay.io/modh/runtime-images@sha256:de57a9c7bd6a870697d27ba0af4e3ee5dc2a2ab05f46885791bce2bffb77342d",
+    packages_to_install=["pandas"]
+)
+def load_datasets(train_ds: Output[Dataset], test_ds: Output[Dataset]):
+    import pandas as pd
+
+    train_csv = 'https://minio-s3-alegros-loan-prediction.apps.prod.rhoai.rh-aiservices-bu.com/rhods/data/train.csv'
+    df = pd.read_csv(train_csv)
+    with open(train_ds.path, 'w') as f:
+        df.to_csv(f, index=False)
+    test_csv = 'https://minio-s3-alegros-loan-prediction.apps.prod.rhoai.rh-aiservices-bu.com/rhods/data/test.csv'
+    df = pd.read_csv(test_csv)
+    with open(test_ds.path, 'w') as f:
+        df.to_csv(f, index=False)
+    train_ds.metadata["version"] = "1.0"
+    test_ds.metadata["version"] = "1.0"
+    train_ds.metadata["foo"] = "bar"
+    test_ds.metadata["foo"] = "bar"
 
 @dsl.component(
     base_image="quay.io/modh/runtime-images@sha256:de57a9c7bd6a870697d27ba0af4e3ee5dc2a2ab05f46885791bce2bffb77342d",
@@ -247,17 +266,8 @@ def evaluate(
 @dsl.pipeline(name="mnist")
 def mnist_pipeline(model_obc: str = "mnist-model", tag: str = "latest"):
     # Pipeline steps
-    import_train_ds = dsl.importer(
-        artifact_uri='s3://rhods/data/train.csv',
-        artifact_class=dsl.Dataset,
-        reimport=False,
-        metadata={})
-    import_test_ds = dsl.importer(
-        artifact_uri='s3://rhods/data/test.csv',
-        artifact_class=dsl.Dataset,
-        reimport=False,
-        metadata={})
-    pre_process_task = pre_process(train_ds=import_train_ds.output, test_ds=import_test_ds.output)
+    load_datasets_task = load_datasets()
+    pre_process_task = pre_process(train_ds=load_datasets_task.outputs["train_ds"], test_ds=load_datasets_task.outputs["test_ds"])
     X_train_out = pre_process_task.outputs["X_train_out"]
     y_train_out = pre_process_task.outputs["y_train_out"]
     X_val_out = pre_process_task.outputs["X_val_out"]
@@ -267,7 +277,7 @@ def mnist_pipeline(model_obc: str = "mnist-model", tag: str = "latest"):
     evaluate_task = evaluate(X_val_out=X_val_out, y_val_out=y_val_out, model_onnx_out=model_onnx_out)
 
 if __name__ == '__main__':
-    host = "https://ds-pipeline-dspa.mnist:8888"
+    host = "https://ds-pipeline-dspa:8888"
     parser = argparse.ArgumentParser(
                         prog='Model.py',
                         description='Digit recognition model and pipeline triggering')
