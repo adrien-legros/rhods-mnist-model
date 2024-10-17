@@ -277,7 +277,7 @@ def mnist_pipeline(model_obc: str = "mnist-model", tag: str = "latest"):
     evaluate_task = evaluate(X_val_out=X_val_out, y_val_out=y_val_out, model_onnx_out=model_onnx_out)
 
 if __name__ == '__main__':
-    host = "https://ds-pipeline-dspa:8888"
+    host = "https://ds-pipeline-dspa.mnist:8888"
     parser = argparse.ArgumentParser(
                         prog='Model.py',
                         description='Digit recognition model and pipeline triggering')
