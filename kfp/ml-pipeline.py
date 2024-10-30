@@ -6,8 +6,8 @@ from kfp.dsl import Input, Output, Dataset, Model, Metrics, Artifact, Classifica
 from datetime import datetime
 
 @dsl.component(
-    base_image="quay.io/modh/runtime-images@sha256:de57a9c7bd6a870697d27ba0af4e3ee5dc2a2ab05f46885791bce2bffb77342d",
-    packages_to_install=["pandas"]
+    base_image="quay.io/alegros/mnist-runtime-image:latest",
+    packages_to_install=[],
 )
 def load_datasets(train_ds: Output[Dataset], test_ds: Output[Dataset]):
     import pandas as pd
@@ -26,8 +26,8 @@ def load_datasets(train_ds: Output[Dataset], test_ds: Output[Dataset]):
     test_ds.metadata["foo"] = "bar"
 
 @dsl.component(
-    base_image="quay.io/modh/runtime-images@sha256:de57a9c7bd6a870697d27ba0af4e3ee5dc2a2ab05f46885791bce2bffb77342d",
-    packages_to_install=["numpy", "pandas", "matplotlib", "seaborn", "tensorflow", "scikit-learn"],
+    base_image="quay.io/alegros/mnist-runtime-image:latest",
+    packages_to_install=[],
 )
 def pre_process(
         train_ds: Input[Dataset],
@@ -94,8 +94,8 @@ def pre_process(
     save_pickle(y_val_out.path, y_val)
 
 @dsl.component(
-    base_image="quay.io/modh/runtime-images@sha256:de57a9c7bd6a870697d27ba0af4e3ee5dc2a2ab05f46885791bce2bffb77342d",
-    packages_to_install=["numpy", "pandas", "tensorflow", "tf2onnx"],
+    base_image="quay.io/alegros/mnist-runtime-image:latest",
+    packages_to_install=[],
 )
 def train(
         X_train_out: Input[Artifact],
@@ -178,8 +178,8 @@ def train(
     print(proc.stderr.decode('ascii'))
 
 @dsl.component(
-    base_image="quay.io/modh/runtime-images@sha256:de57a9c7bd6a870697d27ba0af4e3ee5dc2a2ab05f46885791bce2bffb77342d",
-    packages_to_install=["numpy", "pandas", "tensorflow", "scikit-learn", "onnxruntime"],
+    base_image="quay.io/alegros/mnist-runtime-image:latest",
+    packages_to_install=[],
 )
 def evaluate(
     X_val_out: Input[Artifact],
