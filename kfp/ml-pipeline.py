@@ -176,6 +176,7 @@ def train(
     print(proc.returncode)
     print(proc.stdout.decode('ascii'))
     print(proc.stderr.decode('ascii'))
+    
 
 @dsl.component(
     base_image="quay.io/alegros/mnist-runtime-image:latest",
@@ -262,9 +263,42 @@ def evaluate(
     print(f'precision_score: {prec}')
     print(f'recall_score: {rec}')
 
+@dsl.component(
+    base_image="quay.io/alegros/mnist-runtime-image:latest",
+    packages_to_install=[],
+)
+def register_model(tag: str, model: Input[Model], metrics: Input[Metrics], classification_metrics: Input[ClassificationMetrics], app_domain: str, user_token: str):
+    from model_registry import ModelRegistry
+    from datetime import datetime
+    # Register model
+    model_path=model.path
+    version=datetime.now().strftime('%y%m%d%H%M')
+    model_name="mnist"
+    author_name="ds@redhat.com"
+    model_regitry_endpoint = f"https://model-registry-rest.{app_domain}"
+    registry = ModelRegistry(server_address=model_regitry_endpoint, port=443, author=author_name, is_secure=False, user_token=user_token)
+    registered_model_name = model_name
+    metadata = {
+        # "metrics": metrics,
+        "license": "apache-2.0",
+        "commit": tag,
+        "classification_metrics": classification_metrics.path,
+        "metrics": metrics.path
+    }
+    rm = registry.register_model(
+        registered_model_name,
+        model_path,
+        model_format_name="onnx",
+        model_format_version="1",
+        version=version,
+        description=f"Mnist Model version {version}",
+        metadata=metadata
+    )
+    print("Model registered successfully")
+
 
 @dsl.pipeline(name="mnist")
-def mnist_pipeline(model_obc: str = "mnist-model", tag: str = "latest"):
+def mnist_pipeline(app_domain: str, user_token: str, model_obc: str = "mnist-model", tag: str = "latest"):
     # Pipeline steps
     load_datasets_task = load_datasets()
     pre_process_task = pre_process(train_ds=load_datasets_task.outputs["train_ds"], test_ds=load_datasets_task.outputs["test_ds"])
@@ -275,6 +309,7 @@ def mnist_pipeline(model_obc: str = "mnist-model", tag: str = "latest"):
     train_task = train(X_train_out=X_train_out, y_train_out=y_train_out, X_val_out=X_val_out, y_val_out=y_val_out, tag=tag)
     model_onnx_out = train_task.outputs["model_onnx_out"]
     evaluate_task = evaluate(X_val_out=X_val_out, y_val_out=y_val_out, model_onnx_out=model_onnx_out)
+    register_model_task = register_model(tag=tag, model=model_onnx_out, metrics=evaluate_task.outputs["metrics"], classification_metrics=evaluate_task.outputs["classification_metrics"], app_domain=app_domain, user_token=user_token)
 
 if __name__ == '__main__':
     host = "https://ds-pipeline-dspa.mnist:8888"
@@ -282,15 +317,23 @@ if __name__ == '__main__':
                         prog='Model.py',
                         description='Digit recognition model and pipeline triggering')
     parser.add_argument('-t', '--tag')
+    parser.add_argument('-d', '--app_domain')
+    parser.add_argument('-r', '--register_model', action='store_true')
+    parser.add_argument('--user_token')
     args = parser.parse_args()
     tag = args.tag
     now = str(datetime.now())
     if not tag:
         tag = now
+    register_model = args.register_model
+    if (args.register_model) and (args.app_domain is not None):
+        app_domain = args.app_domain
+    else:
+        app_domain = None
     kfp.compiler.Compiler().compile(
         pipeline_func=mnist_pipeline,
         package_path='mnist-pipeline.yaml',
-        pipeline_parameters={'tag': tag},
+        pipeline_parameters={'tag': tag, 'app_domain': app_domain, 'user_token': args.user_token},
     )
     client = Client(host=host, verify_ssl=False)
     pipeline_name = "Digit recognition pipeline - KFP SDK"
